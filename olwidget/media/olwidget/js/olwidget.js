@@ -709,9 +709,7 @@ olwidget.BaseMapMulti = OpenLayers.Class(OpenLayers.Map, {
         this.opts = this.initOptions(options);
         this.info = info
         this.initMap(mapDivID, info, this.opts);
-        //these are just the names of the vector layers in this.info.
-        //for (k in this.vectorLayers) { ---> this[k] is a OpenLayers.Layer.Vector
-        this.vectorLayers = [];
+        this.vectorLayers = []; //just for storing the names
         for (k in info) { this.vectorLayers.push('vectorLayer'+k);}
     },
     initOptions: function(options) {
@@ -780,9 +778,11 @@ olwidget.BaseMapMulti = OpenLayers.Class(OpenLayers.Map, {
         var styleMap = new OpenLayers.StyleMap({'default': new OpenLayers.Style(opts.overlayStyle, opts.styleContext)});
         // Super constructor
         OpenLayers.Map.prototype.initialize.apply(this, [mapDiv.id, opts.mapOptions]);
+        this.vectorArray = []; // contains the actual vectors
         for (k in info) {
             this['vectorLayer'+k] = new OpenLayers.Layer.Vector(k, { styleMap: styleMap });
             layers.push(this['vectorLayer'+k]);
+            this.vectorArray.push(this['vectorLayer'+k]);
         }
         this.addLayers(layers);
     },
@@ -792,7 +792,7 @@ olwidget.BaseMapMulti = OpenLayers.Class(OpenLayers.Map, {
             if (this['vectorLayer'+key].features.length > 0) { has_features = true; break;}
         }
         if (this.opts.zoomToDataExtent && has_features) {
-            for( var index=0, n=this.vectorLayers.length; index < n; index++ ){
+            for( var index=0, n=this.vectorLayers.length; index < n; index++ ){ // should probably just iterate over the actualy vectors, not just the names
                 var extent = this[this.vectorLayers[index]].features[0].geometry.getBounds(); break;
             }
             if (this.opts.cluster) {
@@ -815,7 +815,7 @@ olwidget.BaseMapMulti = OpenLayers.Class(OpenLayers.Map, {
         }
     },
     clearFeatures: function() {
-        for( var index=0, n=this.vectorLayer.length; index < n; index++ ){
+        for( var index=0, n=this.vectorLayer.length; index < n; index++ ){ // iterating over the names again.  Maybe it's ok?
             this[this.vectorLayers[index]].removeFeatures(this[this.vectorLayers[index]].features);
             this[this.vectorLayers[index]].destroyFeatures();
         }
@@ -868,19 +868,27 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                 }
             }
             this['vectorLayer'+key].addFeatures(features);
-
-            this['select'+key] = new OpenLayers.Control.SelectFeature(this['vectorLayer'+key], { clickout: true, hover: false });
-            this['select'+key].events.register("featurehighlighted", this, 
-                    function(evt) { this.createPopup(evt); });
-            this['select'+key].events.register("featureunhighlighted", this, 
-                    function(evt) { this.deletePopup(); });
-            // Zooming changes clusters, so we must delete popup if we zoom.
-            var map = this;
-            this.events.register("zoomend", this, function(event) { map.deletePopup(); });
-            this.addControl(this['select'+key]);
-            this['select'+key].activate();
         }
         this.initCenter(info);
+        this.addMultiSelect();
+    },
+    addMultiSelect: function() {
+        this.selectControl = new OpenLayers.Control.SelectFeature(
+                this.vectorArray,{
+                    clickout: true, toggle: false,
+                    multiple: false, hover: false,
+                    toggleKey: "ctrlKey", // ctrl key removes from selection
+                    multipleKey: "shiftKey" // shift key adds to selection
+                }
+        );
+        this.selectControl.events.register("featurehighlighted", this, 
+                    function(evt) { this.createPopup(evt); });
+        this.selectControl.events.register("featureunhighlighted", this, 
+                    function(evt) { this.deletePopup(); });
+        var map = this;
+        this.events.register("zoomend", this, function(event) { map.deletePopup(); });
+        map.addControl(this.selectControl);
+        this.selectControl.activate();
     },
     addClusterStrategy: function() {
         var defaultClusterStyle = {
@@ -919,7 +927,7 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
         if (this.opts.overlayStyleContext !== undefined) {
             OpenLayers.Util.applyDefaults(context, this.opts.overlayStyleContext);
         }
-
+        this.vectorArray = []; // have to create the new vectorArray property for the selectControl to work.
         for( key in this.info ){
             var defaultStyleOpts = OpenLayers.Util.applyDefaults(
                 OpenLayers.Util.applyDefaults({}, defaultClusterStyle), 
@@ -941,6 +949,7 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                     strategies: [new OpenLayers.Strategy.Cluster()]
             });
             this.addLayer(this['vectorLayer'+key]);
+            this.vectorArray.push(this['vectorLayer'+key]);
         }
     },
     /**
@@ -1022,7 +1031,7 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                 lonlat, null, popupHTML, null, true, 
                 function() {
                     for (key in infomap.info){
-                        infomap['select'+key].unselect(feature);
+                        infomap.selectControl.unselect(feature);
                     }
                 }, 
                 this.opts.popupDirection,
