@@ -793,7 +793,9 @@ olwidget.BaseMapMulti = OpenLayers.Class(OpenLayers.Map, {
         }
         if (this.opts.zoomToDataExtent && has_features) {
             for( var index=0, n=this.vectorLayers.length; index < n; index++ ){ // should probably just iterate over the actualy vectors, not just the names
-                var extent = this[this.vectorLayers[index]].features[0].geometry.getBounds(); break;
+                if (this[this.vectorLayers[index]].features.length > 0) {
+                    var extent = this[this.vectorLayers[index]].features[0].geometry.getBounds(); break;
+                }
             }
             if (this.opts.cluster) {
                 for( var index=0, n=this.vectorLayers.length; index < n; index++ ){
@@ -868,6 +870,7 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                 }
             }
             this['vectorLayer'+key].addFeatures(features);
+            console.log('we just added features to vectorLayer, ', this['vectorLayer'+key]);
         }
         this.initCenter(info);
         this.addMultiSelect();
@@ -898,7 +901,9 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                 labelSelect: true,
                 fontSize: "11px",
                 fontFamily: "Helvetica, sans-serif",
-                fontColor: "#ffffff"
+                fontColor: "#ffffff",
+                fillColor: "${fill}",
+                strokeColor: "${stroke}",
         };
         var context = {
             width: function(feature) {
@@ -922,7 +927,9 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
             },
             label: function(feature) {
                 return (feature.cluster && feature.cluster.length > 1) ? feature.cluster.length : '';
-            }
+            },
+            fill: function(feature) { return feature.cluster[0].style.fillColor;},
+            stroke: function(feature) { return feature.cluster[0].style.strokeColor;}
         };
         if (this.opts.overlayStyleContext !== undefined) {
             OpenLayers.Util.applyDefaults(context, this.opts.overlayStyleContext);
@@ -942,7 +949,7 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
             }
 
             var defaultStyle = new OpenLayers.Style(defaultStyleOpts, {context: context});
-            var selectStyle = new OpenLayers.Style(selectStyleOpts, {context: context});
+            var selectStyle = this['vectorLayer'+key].styleMap.styles['select'].defaultStyle; //new OpenLayers.Style(selectStyleOpts, {context: });
             this.removeLayer(this['vectorLayer'+key]);
             this['vectorLayer'+key] = new OpenLayers.Layer.Vector(key, { 
                     styleMap: new OpenLayers.StyleMap({ 'default': defaultStyle, 'select': selectStyle }),
