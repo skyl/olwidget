@@ -870,7 +870,6 @@ olwidget.InfoMapMulti = OpenLayers.Class(olwidget.BaseMapMulti, {
                 }
             }
             this['vectorLayer'+key].addFeatures(features);
-            console.log('we just added features to vectorLayer, ', this['vectorLayer'+key]);
         }
         this.initCenter(info);
         this.addMultiSelect();
