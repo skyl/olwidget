@@ -241,6 +241,48 @@ class InfoMap(forms.Widget, MapMixin):
     def __unicode__(self):
         return self.render(None, None)
 
+class InfoMapMulti(forms.Widget, MapMixin):
+    default_template = 'olwidget/info_map_multi.html'
+
+    def __init__(self, info=None, options=None, template=None):
+        self.info = info
+        self.set_options(options, template)
+        super(InfoMapMulti, self).__init__()
+
+    def render(self, name, value, attrs=None):
+        if not self.info:
+            info_json = '{}'
+        else:
+            info = {}
+            for k, v in self.info.iteritems():
+                wkt_array = []
+                for geom, attr in v:
+                    wkt = add_srid(get_wkt(geom))
+                    if isinstance(attr, dict):
+                        wkt_array.append([wkt, translate_options(attr)])
+                    else:
+                        wkt_array.append([wkt, attr])
+
+                info.update({k: wkt_array})
+
+            info_json = simplejson.dumps(info)
+
+        # arbitrary unique id
+        div_id = "id_%s" % id(self)
+
+        context = {
+            'id': div_id,
+            'info': info_json,
+            'map_opts': simplejson.dumps(
+                translate_options(self.options)
+            ),
+        }
+        return render_to_string(self.template, context)
+
+    def __unicode__(self):
+        return self.render(None, None)
+
+
 ewkt_re = re.compile("^SRID=(?P<srid>\d+);(?P<wkt>.+)$", re.I)
 def get_wkt(value, srid=DEFAULT_PROJ):
     """
